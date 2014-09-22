@@ -1,14 +1,97 @@
 defmodule PasswdMD5 do
 
+  use Bitwise
+
   @magic_md5 "$1$"
   @magic_apr "$apr1$"
   @atoz  "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-  def apache_md5_crypt(pw, salt), do: unix_md5_crypt(pw, salt, "$apr1$")
+  def apache_md5_crypt(pw, salt \\ nil), do: unix_md5_crypt(pw, salt, "$apr1$")
 
-  def unix_md5_crypt(pw, salt, magic \\ "$1$") do
+  def unix_md5_crypt(pw, salt \\ nil, magic \\ "$1$") do
+    salt = case salt do
+             nil -> extract_or_generate_salt pw
+             str -> str
+           end
+
+    _entry = make_hash(pw, salt, magic)
+
+    {:ok, magic, salt, pw, :not_implemented}
   end
 
+  
+  def make_hash(pw, salt, magic) do
+    ctx = :crypto.hash_init(:md5)
+    ctx = :crypto.hash_update ctx, pw
+    ctx = :crypto.hash_update ctx, magic
+    ctx = :crypto.hash_update ctx, salt
+
+    final = :crypto.hash_init(:md5)
+    final = :crypto.hash_update final, pw
+    final = :crypto.hash_update final, salt
+    final = :crypto.hash_update final, pw
+    final = :crypto.hash_final final
+    
+    ctx = augment_hash(String.length(pw), ctx, final)
+    ctx = bitshift_to_augment(String.length(pw), pw, ctx)
+    ctx = :crypto.hash_final ctx
+
+    for i <- 0 .. 999 do
+      tmp = :crypto.hash_init(:md5)
+      :crypto.hash_update tmp, 
+              (if (i &&& 1), do: pw, else:  binary_part(ctx, 0, 16))
+      if (rem(i, 3) != 0), do: :crypto.hash_update(tmp, salt)
+      if (rem(i, 7) != 0), do: :crypto.hash_update(tmp, pw)
+      :crypto.hash_update tmp,
+              (if (i &&& 1), do: binary_part(ctx, 0, 16), else: pw)
+      ctx = :crypto.hash_final tmp
+    end
+     
+    password = encode_password(ctx)
+    
+  end
+
+  defp encode_password(ctx) do
+    
+  end
+
+  # def to_64(value, iterations) do
+  #   to_64 value, iterations, []
+  #   # characters = for _ <- 1 .. iterations do
+  #   #   IO.puts value >>> 6
+  #   #   pos = value &&& 0x3f
+  #   #   value = value >>> 6
+  #   #   String.at @atoz, pos
+  #   # end
+  #   # Enum.join characters
+  # end
+
+  def to_64(value, iterations, chars \\ "")
+  def to_64(value, 0, chars), do: chars
+  def to_64(value, iterations, chars) do
+    to_64 (value >>> 6), (iterations - 1), 
+      chars <> String.at(@atoz, (value &&& 0x3f))
+  end
+
+
+  defp bitshift_to_augment(len, _pw, ctx) when len == 0, do: ctx
+  defp bitshift_to_augment(len, pw, ctx) do
+    ctx = if ((len &&& 1) != 0) do
+            :crypto.hash_update(ctx, <<0>>)
+          else
+            :crypto.hash_update(ctx, String.first pw)
+          end
+    bitshift_to_augment((len >>> 1), pw, ctx)
+  end
+    
+      
+
+  defp augment_hash(place, ctx, _final) when place < 0, do: ctx
+  defp augment_hash(place, ctx, final) do
+    length = if place > 16, do: 16, else: place
+    addition = binary_part(final, 0, length)
+    augment_hash(place - 16, :crypto.hash_update(ctx, addition), final)
+  end
 
   def extract_salt(str) do
     {_, salt, _} = parse_hash(str)
