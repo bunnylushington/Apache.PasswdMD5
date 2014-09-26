@@ -21,7 +21,7 @@ defmodule PasswdMD5 do
     List.to_string(:lists.flatten(:io_lib.format("~32.16.0b", [x])))
   end
 
-  def ref_hash(pw, salt) do
+  def final_hash(pw, salt) do
     ctx  = :crypto.hash_init :md5
     ctx  = :crypto.hash_update ctx, pw
     ctx  = :crypto.hash_update ctx, salt
@@ -38,32 +38,46 @@ defmodule PasswdMD5 do
     ctx
   end
 
-  def augment_hash(place, ctx, _final) when place < 0, do: ctx
-  def augment_hash(place, ctx, final) do
+  def step_one(place, ctx, _final) when place < 0, do: ctx
+  def step_one(place, ctx, final) do
     length = if place > 16, do: 16, else: place
     addition = binary_part(final, 0, length)
-    augment_hash(place - 16, :crypto.hash_update(ctx, addition), final)
+    step_one(place - 16, :crypto.hash_update(ctx, addition), final)
   end
 
-  def bitshift_to_augment(len, _pw, ctx) when len == 0, do: ctx
-  def bitshift_to_augment(len, pw, ctx) do
+  def step_two(len, _pw, ctx) when len == 0, do: :crypto.hash_final ctx
+  def step_two(len, pw, ctx) do
     ctx = if ((len &&& 1) != 0) do
             :crypto.hash_update(ctx, <<0>>)
           else
             :crypto.hash_update(ctx, String.first pw)
           end
-    bitshift_to_augment((len >>> 1), pw, ctx)
+    step_two((len >>> 1), pw, ctx)
+  end
+
+  def step_three(ctx, _, _, 0), do: ctx
+  def step_three(ctx, salt, pw, count) do
+    tmp = :crypto.hash_init(:md5)
+    :crypto.hash_update tmp, 
+            (if (count &&& 1), do: pw, else:  binary_part(ctx, 0, 16))
+    if (rem(count, 3) != 0), do: :crypto.hash_update(tmp, salt)
+    if (rem(count, 7) != 0), do: :crypto.hash_update(tmp, pw)
+    :crypto.hash_update tmp,
+            (if (count &&& 1), do: binary_part(ctx, 0, 16), else: pw)
+    step_three(:crypto.hash_final(tmp), salt, pw, (count - 1))
   end
 
   def d, do: make_hash("password", "01234567", "$apr1$")
 
   def make_hash(pw, salt, magic) do
-    final = ref_hash(pw, salt)
-    ctx   = open_hash(pw, salt, magic)
-    ctx   = augment_hash(String.length(pw), ctx, final)
-    ctx   = bitshift_to_augment(String.length(pw), pw, ctx)
-    
-    IO.puts hexstring(:crypto.hash_final ctx)
+    final = final_hash(pw, salt)
+    ctx = open_hash(pw, salt, magic)
+    ctx = step_one(String.length(pw), ctx, final)
+    finalized_ctx = step_two(String.length(pw), pw, ctx)
+#    finalized_ctx = :crypto.hash_final ctx
+    last_round_ctx = step_three(finalized_ctx, salt, pw, 1000)
+
+    IO.puts hexstring(last_round_ctx)
 
     # ctx = :crypto.hash_final ctx
 
@@ -73,17 +87,6 @@ defmodule PasswdMD5 do
   end
 
 
-  defp slowdown(ctx, _, _, 0), do: ctx
-  defp slowdown(ctx, salt, pw, count) do
-    tmp = :crypto.hash_init(:md5)
-    :crypto.hash_update tmp, 
-            (if (count &&& 1), do: pw, else:  binary_part(ctx, 0, 16))
-    if (rem(count, 3) != 0), do: :crypto.hash_update(tmp, salt)
-    if (rem(count, 7) != 0), do: :crypto.hash_update(tmp, pw)
-    :crypto.hash_update tmp,
-            (if (count &&& 1), do: binary_part(ctx, 0, 16), else: pw)
-    slowdown(:crypto.hash_final(tmp), salt, pw, (count - 1))
-  end
 
   defp encode_password(ctx) do
     # XXX: stupidly naive implementation.

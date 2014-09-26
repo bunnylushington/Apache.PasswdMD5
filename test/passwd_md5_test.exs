@@ -23,8 +23,8 @@ defmodule PasswdMD5Test do
     assert String.length(MD.extract_or_generate_salt("random string")) == 8
   end
 
-  test "ref hash" do
-    assert PasswdMD5.hexstring(PasswdMD5.ref_hash(@pass, @salt)) ==
+  test "final hash" do
+    assert PasswdMD5.hexstring(PasswdMD5.final_hash(@pass, @salt)) ==
                        "fa378024840d64806b718f4a4d8156fe"
   end
 
@@ -35,24 +35,33 @@ defmodule PasswdMD5Test do
     assert PasswdMD5.hexstring(final) == expected
   end
 
-  test "augment step" do
+  test "step one" do
     expected = "1e71014620d18d36fac8c0c7e745af65"
     ctx   = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
-    final = PasswdMD5.ref_hash(@pass, @salt)
-    res   = PasswdMD5.augment_hash(String.length(@pass), ctx, final)
+    final = PasswdMD5.final_hash(@pass, @salt)
+    res   = PasswdMD5.step_one(String.length(@pass), ctx, final)
     intermediate = :crypto.hash_final res
     assert PasswdMD5.hexstring(intermediate) == expected
   end
 
-  test "bitshift_to_augment step" do
+  test "step two" do
     expected = "11ffba86fed62f12f2b34e864fa48617"
     ctx = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
-    final = PasswdMD5.ref_hash(@pass, @salt)
-    ctx = PasswdMD5.augment_hash(String.length(@pass), ctx, final)
-    res = PasswdMD5.bitshift_to_augment(String.length(@pass), @pass, ctx)
-    intermediate = :crypto.hash_final res
-    assert PasswdMD5.hexstring(intermediate) == expected
+    final = PasswdMD5.final_hash(@pass, @salt)
+    ctx = PasswdMD5.step_one(String.length(@pass), ctx, final)
+    res = PasswdMD5.step_two(String.length(@pass), @pass, ctx)
+    assert PasswdMD5.hexstring(res) == expected
   end
+
+  test "step three" do
+    expected = "d41d8cd98f00b204e9800998ecf8427e"
+    ctx = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
+    final = PasswdMD5.final_hash(@pass, @salt)
+    ctx = PasswdMD5.step_one(String.length(@pass), ctx, final)
+    finalized_ctx = PasswdMD5.step_two(String.length(@pass), @pass, ctx)
+    res = PasswdMD5.step_three(finalized_ctx, @salt, @pass, 1000)
+    assert PasswdMD5.hexstring(res) == expected
+  end    
 
   # test "crypt" do
   #   {:ok, magic, salt, pw, _entry} = MD.unix_md5_crypt(@md5)
