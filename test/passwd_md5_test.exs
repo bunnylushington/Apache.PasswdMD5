@@ -22,17 +22,22 @@ defmodule PasswdMD5Test do
     assert String.length(MD.extract_or_generate_salt("random string")) == 8
   end
 
-  test "crypt" do
-    {:ok, magic, salt, pw, entry} = MD.unix_md5_crypt(@md5)
-    assert magic == "$1$"
-    assert salt == @salt
-    assert pw == @md5
-
-    {:ok, magic, salt, pw, entry} = MD.apache_md5_crypt(@apr)
-    assert magic == "$apr1$"
-    assert salt == @salt
-    assert pw == @apr
+  test "ref hash" do
+    assert PasswdMD5.hexstring(PasswdMD5.ref_hash(@pass, @salt)) ==
+                       "fa378024840d64806b718f4a4d8156fe"
   end
+
+  # test "crypt" do
+  #   {:ok, magic, salt, pw, _entry} = MD.unix_md5_crypt(@md5)
+  #   assert magic == "$1$"
+  #   assert salt == @salt
+  #   assert pw == @md5
+
+  #   {:ok, magic, salt, pw, _entry} = MD.apache_md5_crypt(@apr)
+  #   assert magic == "$apr1$"
+  #   assert salt == @salt
+  #   assert pw == @apr
+  # end
 
   test "to_64" do
     # values snarfed from Perl implementation

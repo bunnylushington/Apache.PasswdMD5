@@ -13,66 +13,101 @@ defmodule PasswdMD5 do
              nil -> extract_or_generate_salt pw
              str -> str
            end
-
-    _entry = make_hash(pw, salt, magic)
-
-    {:ok, magic, salt, pw, :not_implemented}
+    hash = make_hash(pw, salt, magic)
+    {:ok, magic, salt, pw, magic <> salt <> "$" <> hash} 
   end
 
-  
+  def hexstring(<< x :: 128 >>) do
+    List.to_string(:lists.flatten(:io_lib.format("~32.16.0b", [x])))
+  end
+
+  def ref_hash(pw, salt) do
+    ctx  = :crypto.hash_init :md5
+    ctx  = :crypto.hash_update ctx, pw
+    ctx  = :crypto.hash_update ctx, salt
+    ctx  = :crypto.hash_update ctx, pw
+    :crypto.hash_final ctx
+  end
+
+  defp augment_hash(place, ctx, _final) when place < 0, do: ctx
+  defp augment_hash(place, ctx, final) do
+    length = if place > 16, do: 16, else: place
+    addition = binary_part(final, 0, length)
+    augment_hash(place - 16, :crypto.hash_update(ctx, addition), final)
+  end
+
   def make_hash(pw, salt, magic) do
     ctx = :crypto.hash_init(:md5)
     ctx = :crypto.hash_update ctx, pw
     ctx = :crypto.hash_update ctx, magic
     ctx = :crypto.hash_update ctx, salt
 
-    final = :crypto.hash_init(:md5)
-    final = :crypto.hash_update final, pw
-    final = :crypto.hash_update final, salt
-    final = :crypto.hash_update final, pw
-    final = :crypto.hash_final final
-    
-    ctx = augment_hash(String.length(pw), ctx, final)
-    ctx = bitshift_to_augment(String.length(pw), pw, ctx)
-    ctx = :crypto.hash_final ctx
+    final = ref_hash(pw, salt)
 
-    for i <- 0 .. 999 do
-      tmp = :crypto.hash_init(:md5)
-      :crypto.hash_update tmp, 
-              (if (i &&& 1), do: pw, else:  binary_part(ctx, 0, 16))
-      if (rem(i, 3) != 0), do: :crypto.hash_update(tmp, salt)
-      if (rem(i, 7) != 0), do: :crypto.hash_update(tmp, pw)
-      :crypto.hash_update tmp,
-              (if (i &&& 1), do: binary_part(ctx, 0, 16), else: pw)
-      ctx = :crypto.hash_final tmp
-    end
-     
-    password = encode_password(ctx)
-    
+#    ctx = augment_hash(String.length(pw), ctx, final)
+
+#    IO.puts hexstring(:crypto.hash_final ctx)
+
+    # ctx = bitshift_to_augment(String.length(pw), pw, ctx)
+    # ctx = :crypto.hash_final ctx
+
+    # IO.puts "context; #{ inspect ctx }"
+    # ctx = slowdown(ctx, salt, pw, 1000)
+    # encode_password(ctx)
+  end
+
+
+  defp slowdown(ctx, _, _, 0), do: ctx
+  defp slowdown(ctx, salt, pw, count) do
+    tmp = :crypto.hash_init(:md5)
+    :crypto.hash_update tmp, 
+            (if (count &&& 1), do: pw, else:  binary_part(ctx, 0, 16))
+    if (rem(count, 3) != 0), do: :crypto.hash_update(tmp, salt)
+    if (rem(count, 7) != 0), do: :crypto.hash_update(tmp, pw)
+    :crypto.hash_update tmp,
+            (if (count &&& 1), do: binary_part(ctx, 0, 16), else: pw)
+    slowdown(:crypto.hash_final(tmp), salt, pw, (count - 1))
   end
 
   defp encode_password(ctx) do
+    # XXX: stupidly naive implementation.
+    IO.puts "context: #{ (byte_size ctx) * 8 }"
+    {int_1, _ } = Integer.parse(binary_part(ctx, 0,  1) <<< 16)
+    {int_2, _ } = Integer.parse(binary_part(ctx, 6,  1) <<< 8)
+    {int_3, _ } = Integer.parse(binary_part(ctx, 12, 1))
+    res_1 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+
+    {int_1, _ } = Integer.parse(binary_part(ctx, 1,  1) <<< 16)
+    {int_2, _ } = Integer.parse(binary_part(ctx, 7,  1) <<< 8)
+    {int_3, _ } = Integer.parse(binary_part(ctx, 13, 1))
+    res_2 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+
+    {int_1, _ } = Integer.parse(binary_part(ctx, 2,  1) <<< 16)
+    {int_2, _ } = Integer.parse(binary_part(ctx, 8,  1) <<< 8)
+    {int_3, _ } = Integer.parse(binary_part(ctx, 14, 1))
+    res_3 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+
+    {int_1, _ } = Integer.parse(binary_part(ctx, 3,  1) <<< 16)
+    {int_2, _ } = Integer.parse(binary_part(ctx, 9,  1) <<< 8)
+    {int_3, _ } = Integer.parse(binary_part(ctx, 15, 1))
+    res_4 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+
+    {int_1, _ } = Integer.parse(binary_part(ctx, 4,  1) <<< 16)
+    {int_2, _ } = Integer.parse(binary_part(ctx, 10,  1) <<< 8)
+    {int_3, _ } = Integer.parse(binary_part(ctx, 5, 1))
+    res_5 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
     
+    res_6 = to_64(Integer.parse(binary_part(ctx, 11, 1)), 2)
+
+    Enum.join [res_1, res_2, res_3, res_4, res_5, res_6]
   end
 
-  # def to_64(value, iterations) do
-  #   to_64 value, iterations, []
-  #   # characters = for _ <- 1 .. iterations do
-  #   #   IO.puts value >>> 6
-  #   #   pos = value &&& 0x3f
-  #   #   value = value >>> 6
-  #   #   String.at @atoz, pos
-  #   # end
-  #   # Enum.join characters
-  # end
-
   def to_64(value, iterations, chars \\ "")
-  def to_64(value, 0, chars), do: chars
+  def to_64(_, 0, chars), do: chars
   def to_64(value, iterations, chars) do
     to_64 (value >>> 6), (iterations - 1), 
       chars <> String.at(@atoz, (value &&& 0x3f))
   end
-
 
   defp bitshift_to_augment(len, _pw, ctx) when len == 0, do: ctx
   defp bitshift_to_augment(len, pw, ctx) do
@@ -83,15 +118,7 @@ defmodule PasswdMD5 do
           end
     bitshift_to_augment((len >>> 1), pw, ctx)
   end
-    
-      
 
-  defp augment_hash(place, ctx, _final) when place < 0, do: ctx
-  defp augment_hash(place, ctx, final) do
-    length = if place > 16, do: 16, else: place
-    addition = binary_part(final, 0, length)
-    augment_hash(place - 16, :crypto.hash_update(ctx, addition), final)
-  end
 
   def extract_salt(str) do
     {_, salt, _} = parse_hash(str)
