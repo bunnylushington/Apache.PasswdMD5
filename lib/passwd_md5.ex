@@ -28,6 +28,15 @@ defmodule PasswdMD5 do
     ctx  = :crypto.hash_update ctx, pw
     :crypto.hash_final ctx
   end
+  
+  def open_hash(pw, salt, magic) do
+    # note that this isn't finalized.
+    ctx = :crypto.hash_init(:md5)
+    ctx = :crypto.hash_update ctx, pw
+    ctx = :crypto.hash_update ctx, magic
+    ctx = :crypto.hash_update ctx, salt
+    ctx
+  end
 
   defp augment_hash(place, ctx, _final) when place < 0, do: ctx
   defp augment_hash(place, ctx, final) do
@@ -37,12 +46,9 @@ defmodule PasswdMD5 do
   end
 
   def make_hash(pw, salt, magic) do
-    ctx = :crypto.hash_init(:md5)
-    ctx = :crypto.hash_update ctx, pw
-    ctx = :crypto.hash_update ctx, magic
-    ctx = :crypto.hash_update ctx, salt
-
+    ctx = open_hash(pw, salt, magic)
     final = ref_hash(pw, salt)
+
 
 #    ctx = augment_hash(String.length(pw), ctx, final)
 

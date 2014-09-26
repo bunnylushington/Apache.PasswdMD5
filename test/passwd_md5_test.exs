@@ -6,6 +6,7 @@ defmodule PasswdMD5Test do
   @pass "password"
   @md5  "$1$01234567$b5lh2mHyD2PdJjFfALlEz1"
   @apr  "$apr1$01234567$IXBaQywhAhc0d75ZbaSDp/"
+  @apr_magic "$apr1$"
 
   test "extract salt" do
     assert MD.extract_salt!(@apr) == @salt
@@ -25,6 +26,13 @@ defmodule PasswdMD5Test do
   test "ref hash" do
     assert PasswdMD5.hexstring(PasswdMD5.ref_hash(@pass, @salt)) ==
                        "fa378024840d64806b718f4a4d8156fe"
+  end
+
+  test "open hash" do
+    expected = "ab6d0c341626e787f355057c41477721"
+    ctx = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
+    final = :crypto.hash_final ctx
+    assert PasswdMD5.hexstring(final) == expected
   end
 
   # test "crypt" do
