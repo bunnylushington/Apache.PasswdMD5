@@ -38,23 +38,33 @@ defmodule PasswdMD5 do
     ctx
   end
 
-  defp augment_hash(place, ctx, _final) when place < 0, do: ctx
-  defp augment_hash(place, ctx, final) do
+  def augment_hash(place, ctx, _final) when place < 0, do: ctx
+  def augment_hash(place, ctx, final) do
     length = if place > 16, do: 16, else: place
     addition = binary_part(final, 0, length)
     augment_hash(place - 16, :crypto.hash_update(ctx, addition), final)
   end
 
+  def bitshift_to_augment(len, _pw, ctx) when len == 0, do: ctx
+  def bitshift_to_augment(len, pw, ctx) do
+    ctx = if ((len &&& 1) != 0) do
+            :crypto.hash_update(ctx, <<0>>)
+          else
+            :crypto.hash_update(ctx, String.first pw)
+          end
+    bitshift_to_augment((len >>> 1), pw, ctx)
+  end
+
+  def d, do: make_hash("password", "01234567", "$apr1$")
+
   def make_hash(pw, salt, magic) do
-    ctx = open_hash(pw, salt, magic)
     final = ref_hash(pw, salt)
+    ctx   = open_hash(pw, salt, magic)
+    ctx   = augment_hash(String.length(pw), ctx, final)
+    ctx   = bitshift_to_augment(String.length(pw), pw, ctx)
+    
+    IO.puts hexstring(:crypto.hash_final ctx)
 
-
-#    ctx = augment_hash(String.length(pw), ctx, final)
-
-#    IO.puts hexstring(:crypto.hash_final ctx)
-
-    # ctx = bitshift_to_augment(String.length(pw), pw, ctx)
     # ctx = :crypto.hash_final ctx
 
     # IO.puts "context; #{ inspect ctx }"
@@ -115,15 +125,6 @@ defmodule PasswdMD5 do
       chars <> String.at(@atoz, (value &&& 0x3f))
   end
 
-  defp bitshift_to_augment(len, _pw, ctx) when len == 0, do: ctx
-  defp bitshift_to_augment(len, pw, ctx) do
-    ctx = if ((len &&& 1) != 0) do
-            :crypto.hash_update(ctx, <<0>>)
-          else
-            :crypto.hash_update(ctx, String.first pw)
-          end
-    bitshift_to_augment((len >>> 1), pw, ctx)
-  end
 
 
   def extract_salt(str) do

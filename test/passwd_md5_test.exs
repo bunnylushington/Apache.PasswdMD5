@@ -35,6 +35,25 @@ defmodule PasswdMD5Test do
     assert PasswdMD5.hexstring(final) == expected
   end
 
+  test "augment step" do
+    expected = "1e71014620d18d36fac8c0c7e745af65"
+    ctx   = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
+    final = PasswdMD5.ref_hash(@pass, @salt)
+    res   = PasswdMD5.augment_hash(String.length(@pass), ctx, final)
+    intermediate = :crypto.hash_final res
+    assert PasswdMD5.hexstring(intermediate) == expected
+  end
+
+  test "bitshift_to_augment step" do
+    expected = "11ffba86fed62f12f2b34e864fa48617"
+    ctx = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
+    final = PasswdMD5.ref_hash(@pass, @salt)
+    ctx = PasswdMD5.augment_hash(String.length(@pass), ctx, final)
+    res = PasswdMD5.bitshift_to_augment(String.length(@pass), @pass, ctx)
+    intermediate = :crypto.hash_final res
+    assert PasswdMD5.hexstring(intermediate) == expected
+  end
+
   # test "crypt" do
   #   {:ok, magic, salt, pw, _entry} = MD.unix_md5_crypt(@md5)
   #   assert magic == "$1$"
