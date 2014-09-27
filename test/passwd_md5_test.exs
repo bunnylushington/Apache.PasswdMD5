@@ -25,42 +25,42 @@ defmodule PasswdMD5Test do
   end
 
   test "final hash" do
-    assert PasswdMD5.hexstring(PasswdMD5.final_hash(@pass, @salt)) ==
-                       "fa378024840d64806b718f4a4d8156fe"
+    assert MD.hexstring(MD.final_hash(@pass, @salt)) ==
+                "fa378024840d64806b718f4a4d8156fe"
   end
 
   test "open hash" do
     expected = "ab6d0c341626e787f355057c41477721"
-    ctx = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
+    ctx = MD.open_hash(@pass, @salt, @apr_magic)
     final = :crypto.hash_final ctx
-    assert PasswdMD5.hexstring(final) == expected
+    assert MD.hexstring(final) == expected
   end
 
   test "step one" do
     expected = "1e71014620d18d36fac8c0c7e745af65"
-    ctx   = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
-    final = PasswdMD5.final_hash(@pass, @salt)
-    res   = PasswdMD5.step_one(String.length(@pass), ctx, final)
+    ctx   = MD.open_hash(@pass, @salt, @apr_magic)
+    final = MD.final_hash(@pass, @salt)
+    res   = MD.step_one(String.length(@pass), ctx, final)
     intermediate = :crypto.hash_final res
-    assert PasswdMD5.hexstring(intermediate) == expected
+    assert MD.hexstring(intermediate) == expected
   end
 
   test "step two" do
     expected = "11ffba86fed62f12f2b34e864fa48617"
-    ctx = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
-    final = PasswdMD5.final_hash(@pass, @salt)
-    ctx = PasswdMD5.step_one(String.length(@pass), ctx, final)
-    res = PasswdMD5.step_two(String.length(@pass), @pass, ctx)
-    assert PasswdMD5.hexstring(res) == expected
+    ctx = MD.open_hash(@pass, @salt, @apr_magic)
+    final = MD.final_hash(@pass, @salt)
+    ctx = MD.step_one(String.length(@pass), ctx, final)
+    res = MD.step_two(String.length(@pass), @pass, ctx)
+    assert MD.hexstring(res) == expected
   end
 
   test "step three" do
     expected = "98b70a943da7d8cf8b72e975d49c4c69"
-    final = final_hash(@pass, @salt)
-    ctx   = open_hash(@pass, @salt, @apr_magic)
-    ctx            = step_one(String.length(@pass), ctx, final)
-    finalized_ctx  = step_two(String.length(@pass), @pass, ctx)
-    last_round_ctx = step_three(finalized_ctx, @salt, @pass, 0) 
+    final = MD.final_hash(@pass, @salt)
+    ctx   = MD.open_hash(@pass, @salt, @apr_magic)
+    ctx            = MD.step_one(String.length(@pass), ctx, final)
+    finalized_ctx  = MD.step_two(String.length(@pass), @pass, ctx)
+    last_round_ctx = MD.step_three(finalized_ctx, @salt, @pass, 0) 
     assert hexstring(last_round_ctx) == expected
   end    
 
