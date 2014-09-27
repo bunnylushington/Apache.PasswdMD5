@@ -1,11 +1,10 @@
 defmodule PasswdMD5Test do
   use ExUnit.Case
-  alias PasswdMD5, as: MD
-  import PasswdMD5
+  alias Apache.PasswdMD5, as: MD
 
   @salt "01234567"
   @pass "password"
-  @md5  "$1$01234567$b5lh2mHyD2PdJjFfALlEz1"
+  @md5     "$1$01234567$b5lh2mHyD2PdJjFfALlEz1"
   @apr  "$apr1$01234567$IXBaQywhAhc0d75ZbaSDp/"
   @apr_magic "$apr1$"
 
@@ -22,6 +21,11 @@ defmodule PasswdMD5Test do
     assert MD.extract_or_generate_salt(@apr) == @salt
     assert MD.extract_or_generate_salt(@md5) == @salt
     assert String.length(MD.extract_or_generate_salt("random string")) == 8
+  end
+
+  test "maybe extract salt" do
+    assert MD.maybe_extract_salt(@md5) == "01234567"
+    assert MD.maybe_extract_salt(@apr) == "01234567"
   end
 
   test "final hash" do
@@ -61,7 +65,7 @@ defmodule PasswdMD5Test do
     ctx            = MD.step_one(String.length(@pass), ctx, final)
     finalized_ctx  = MD.step_two(String.length(@pass), @pass, ctx)
     last_round_ctx = MD.step_three(finalized_ctx, @salt, @pass, 0) 
-    assert hexstring(last_round_ctx) == expected
+    assert MD.hexstring(last_round_ctx) == expected
   end    
 
   # test "crypt" do
@@ -75,6 +79,19 @@ defmodule PasswdMD5Test do
   #   assert salt == @salt
   #   assert pw == @apr
   # end
+
+  test "apache crypt" do
+    {:ok, magic, salt, pw, ht_string} = MD.apache_md5_crypt(@pass, @salt)
+    assert magic == @apr_magic
+    assert salt == @salt
+    assert pw == @pass
+    assert ht_string == @apr
+
+    # if a string with a magic pattern is passed, extract the salt for use
+    assert {:ok, ^magic, ^salt, ^pw, ^ht_string} = 
+      MD.apache_md5_crypt(@pass, ht_string)
+    
+  end
 
   test "to_64" do
     # values snarfed from Perl implementation

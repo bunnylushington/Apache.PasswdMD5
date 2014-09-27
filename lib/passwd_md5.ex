@@ -1,4 +1,14 @@
-defmodule PasswdMD5 do
+defmodule Apache.PasswdMD5 do
+
+  @moduledoc """
+Provides a means of generating an Apache style MD5 hash (as used by
+htaccess).  This code was derived from the Crypt::PasswdMD5 Perl
+module which appears to have been based on 
+  
+  http://svn.apache.org/viewvc/apr/apr/trunk/crypto/apr_md5.c?view=co
+
+Corrections or suggestions welcome.
+"""
 
   use Bitwise
   require Integer
@@ -12,11 +22,12 @@ defmodule PasswdMD5 do
   def unix_md5_crypt(pw, salt \\ nil, magic \\ "$1$") do
     salt = case salt do
              nil -> extract_or_generate_salt pw
-             str -> str
+             str -> maybe_extract_salt str
            end
     hash = make_hash(pw, salt, magic)
     {:ok, magic, salt, pw, magic <> salt <> "$" <> hash} 
   end
+
 
   def make_hash(pw, salt, magic) do
     final          = final_hash(pw, salt)
@@ -95,6 +106,14 @@ defmodule PasswdMD5 do
     to_64 (value >>> 6), (iterations - 1), 
       chars <> String.at(@atoz, (value &&& 0x3f))
   end
+
+
+  def maybe_extract_salt(str) do
+    case extract_salt(str) do
+      {:ok, salt} -> salt
+      _ -> str
+    end
+  end    
 
   def extract_salt(str) do
     {_, salt, _} = parse_hash(str)
