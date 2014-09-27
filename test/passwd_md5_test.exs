@@ -68,18 +68,6 @@ defmodule PasswdMD5Test do
     assert MD.hexstring(last_round_ctx) == expected
   end    
 
-  # test "crypt" do
-  #   {:ok, magic, salt, pw, _entry} = MD.unix_md5_crypt(@md5)
-  #   assert magic == "$1$"
-  #   assert salt == @salt
-  #   assert pw == @md5
-
-  #   {:ok, magic, salt, pw, _entry} = MD.apache_md5_crypt(@apr)
-  #   assert magic == "$apr1$"
-  #   assert salt == @salt
-  #   assert pw == @apr
-  # end
-
   test "apache crypt" do
     {:ok, magic, salt, pw, ht_string} = MD.apache_md5_crypt(@pass, @salt)
     assert magic == @apr_magic
@@ -90,7 +78,18 @@ defmodule PasswdMD5Test do
     # if a string with a magic pattern is passed, extract the salt for use
     assert {:ok, ^magic, ^salt, ^pw, ^ht_string} = 
       MD.apache_md5_crypt(@pass, ht_string)
-    
+  end
+
+  if System.find_executable("htpasswd") do
+    test "match htpasswd generated pw" do
+      assert {str, 0} = System.cmd("htpasswd", ["-nmb", "username", "password"])
+      [_, ht_str] = String.split(String.strip(str), ":", parts: 2)
+      [m, s, p] = String.split ht_str, "$", trim: true, parts: 3
+      assert {:ok, _m, ^s, "password", ht_string} =
+        MD.apache_md5_crypt("password", s)
+      assert {:ok, _m, ^s, "password", ^ht_string} = 
+        MD.apache_md5_crypt("password", ht_string)
+    end
   end
 
   test "to_64" do

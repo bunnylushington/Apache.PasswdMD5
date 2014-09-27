@@ -1,14 +1,25 @@
 defmodule Apache.PasswdMD5 do
 
   @moduledoc """
-Provides a means of generating an Apache style MD5 hash (as used by
-htaccess).  This code was derived from the Crypt::PasswdMD5 Perl
-module which appears to have been based on 
+  Provides a means of generating an Apache style MD5 hash (as used by
+  htaccess).  This code was derived from the Crypt::PasswdMD5 Perl
+  module which appears to have been based on 
   
-  http://svn.apache.org/viewvc/apr/apr/trunk/crypto/apr_md5.c?view=co
+    http://svn.apache.org/viewvc/apr/apr/trunk/crypto/apr_md5.c?view=co
 
-Corrections or suggestions welcome.
-"""
+  Corrections or suggestions welcome.
+
+  # Examples
+
+      iex> {:ok, magic, salt, pw, htstring} =
+      ...>     Apache.PasswdMD5.apache_md5_crypt("password", "salt")
+      {:ok, "$apr1$", "salt", "password", "$apr1$salt$Xxd1irWT9ycqoYxGFn4cb."}
+      
+      iex> {:ok, ^magic, ^salt, ^pw, ^htstring} =
+      ...>     Apache.PasswdMD5.apache_md5_crypt("password", htstring)
+      {:ok, "$apr1$", "salt", "password", "$apr1$salt$Xxd1irWT9ycqoYxGFn4cb."}
+
+  """
 
   use Bitwise
   require Integer
@@ -27,7 +38,6 @@ Corrections or suggestions welcome.
     hash = make_hash(pw, salt, magic)
     {:ok, magic, salt, pw, magic <> salt <> "$" <> hash} 
   end
-
 
   def make_hash(pw, salt, magic) do
     final          = final_hash(pw, salt)
