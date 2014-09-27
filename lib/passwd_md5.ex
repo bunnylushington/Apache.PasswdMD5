@@ -18,8 +18,13 @@ defmodule PasswdMD5 do
     {:ok, magic, salt, pw, magic <> salt <> "$" <> hash} 
   end
 
-  def hexstring(<< x :: 128 >>) do
-    List.to_string(:lists.flatten(:io_lib.format("~32.16.0b", [x])))
+  def make_hash(pw, salt, magic) do
+    final          = final_hash(pw, salt)
+    ctx            = open_hash(pw, salt, magic)
+    ctx            = step_one(String.length(pw), ctx, final)
+    finalized_ctx  = step_two(String.length(pw), pw, ctx)
+    last_round_ctx = step_three(finalized_ctx, salt, pw, 0) 
+    step_four(last_round_ctx)
   end
 
   def final_hash(pw, salt) do
@@ -35,8 +40,7 @@ defmodule PasswdMD5 do
     ctx = :crypto.hash_init(:md5)
     ctx = :crypto.hash_update ctx, pw
     ctx = :crypto.hash_update ctx, magic
-    ctx = :crypto.hash_update ctx, salt
-    ctx
+    :crypto.hash_update ctx, salt
   end
 
   def step_one(place, ctx, _final) when place < 0, do: ctx
@@ -65,21 +69,10 @@ defmodule PasswdMD5 do
     if (rem(count, 7) != 0), do: tmp = :crypto.hash_update(tmp, pw)
     second_update = 
       if Integer.is_odd(count), do: binary_part(ctx, 0, 16), else: pw
-    tmp = :crypto.hash_update tmp,second_update
+    tmp = :crypto.hash_update tmp, second_update
     step_three(:crypto.hash_final(tmp), salt, pw, (count + 1))
   end
   def step_three(ctx, _, _, _), do: ctx
-
-  def d, do: make_hash("password", "01234567", "$apr1$")
-
-  def make_hash(pw, salt, magic) do
-    final = final_hash(pw, salt)
-    ctx   = open_hash(pw, salt, magic)
-    ctx            = step_one(String.length(pw), ctx, final)
-    finalized_ctx  = step_two(String.length(pw), pw, ctx)
-    last_round_ctx = step_three(finalized_ctx, salt, pw, 0) 
-    step_four(last_round_ctx)
-  end
 
   defp step_four(ctx) do
     # XXX: stupidly naive implementation.
@@ -140,6 +133,10 @@ defmodule PasswdMD5 do
       [@magic_apr, salt, crypted_pw] -> {:apr, salt, crypted_pw}
       _                              -> {:invalid_hash, nil, nil}
     end
+  end
+
+  def hexstring(<< x :: 128 >>) do
+    List.to_string(:lists.flatten(:io_lib.format("~32.16.0b", [x])))
   end
 
 end
