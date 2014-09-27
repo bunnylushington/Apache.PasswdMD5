@@ -12,11 +12,11 @@ defmodule Apache.PasswdMD5 do
   # Examples
 
       iex> {:ok, magic, salt, pw, htstring} =
-      ...>     Apache.PasswdMD5.apache_md5_crypt("password", "salt")
+      ...>     Apache.PasswdMD5.crypt("password", "salt")
       {:ok, "$apr1$", "salt", "password", "$apr1$salt$Xxd1irWT9ycqoYxGFn4cb."}
       
       iex> {:ok, ^magic, ^salt, ^pw, ^htstring} =
-      ...>     Apache.PasswdMD5.apache_md5_crypt("password", htstring)
+      ...>     Apache.PasswdMD5.crypt("password", htstring)
       {:ok, "$apr1$", "salt", "password", "$apr1$salt$Xxd1irWT9ycqoYxGFn4cb."}
 
   """
@@ -28,9 +28,7 @@ defmodule Apache.PasswdMD5 do
   @magic_apr "$apr1$"
   @atoz  "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
-  def apache_md5_crypt(pw, salt \\ nil), do: unix_md5_crypt(pw, salt, "$apr1$")
-
-  def unix_md5_crypt(pw, salt \\ nil, magic \\ "$1$") do
+  def crypt(pw, salt \\ nil, magic \\ "$apr1$")  do
     salt = case salt do
              nil -> extract_or_generate_salt pw
              str -> maybe_extract_salt str
