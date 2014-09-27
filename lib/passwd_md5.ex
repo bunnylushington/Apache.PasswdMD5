@@ -78,59 +78,22 @@ defmodule PasswdMD5 do
     ctx            = step_one(String.length(pw), ctx, final)
     finalized_ctx  = step_two(String.length(pw), pw, ctx)
     last_round_ctx = step_three(finalized_ctx, salt, pw, 0) 
-    IO.puts "after step three #{hexstring last_round_ctx}"
-
- #   res            = step_four(last_round_ctx)
-#    IO.puts res
+    step_four(last_round_ctx)
   end
-
-
 
   defp step_four(ctx) do
     # XXX: stupidly naive implementation.
-    IO.puts "context: #{ (byte_size ctx) * 8 }"
-    IO.puts "hexstring: #{ hexstring(ctx) }"
-#    x = binary_part(ctx, 0,  1) <<< 16
     << x0,  x1,  x2,  x3,
        x4,  x5,  x6,  x7, 
        x8,  x9,  x10, x11,
        x12, x13, x14, x15 >> = ctx
-
-    IO.puts "#{ inspect x0 }, #{ inspect x6 }, #{ inspect x12 }"
-    r1 = ( (x0 <<< 16) ||| (x6 <<< 8) ||| x12 )
-
-    IO.puts "#{ x0 <<< 16 }, #{ x6 <<< 8 }, #{ x12 }"
-
-#    y = binary_part ctx, 0, 1
-# does not work:    IO.puts inspect (y <<< 16)
-    # {int_1, _ } = Integer.parse(binary_part(ctx, 0,  1) <<< 16)
-    # {int_2, _ } = Integer.parse(binary_part(ctx, 6,  1) <<< 8)
-    # {int_3, _ } = Integer.parse(binary_part(ctx, 12, 1))
-    # res_1 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
-
-    # {int_1, _ } = Integer.parse(binary_part(ctx, 1,  1) <<< 16)
-    # {int_2, _ } = Integer.parse(binary_part(ctx, 7,  1) <<< 8)
-    # {int_3, _ } = Integer.parse(binary_part(ctx, 13, 1))
-    # res_2 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
-
-    # {int_1, _ } = Integer.parse(binary_part(ctx, 2,  1) <<< 16)
-    # {int_2, _ } = Integer.parse(binary_part(ctx, 8,  1) <<< 8)
-    # {int_3, _ } = Integer.parse(binary_part(ctx, 14, 1))
-    # res_3 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
-
-    # {int_1, _ } = Integer.parse(binary_part(ctx, 3,  1) <<< 16)
-    # {int_2, _ } = Integer.parse(binary_part(ctx, 9,  1) <<< 8)
-    # {int_3, _ } = Integer.parse(binary_part(ctx, 15, 1))
-    # res_4 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
-
-    # {int_1, _ } = Integer.parse(binary_part(ctx, 4,  1) <<< 16)
-    # {int_2, _ } = Integer.parse(binary_part(ctx, 10,  1) <<< 8)
-    # {int_3, _ } = Integer.parse(binary_part(ctx, 5, 1))
-    # res_5 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
-    
-    # res_6 = to_64(Integer.parse(binary_part(ctx, 11, 1)), 2)
-
-    # Enum.join [res_1, res_2, res_3, res_4, res_5, res_6]
+    r1 = to_64 ( (x0 <<< 16) ||| (x6  <<< 8) ||| x12 ), 4
+    r2 = to_64 ( (x1 <<< 16) ||| (x7  <<< 8) ||| x13 ), 4
+    r3 = to_64 ( (x2 <<< 16) ||| (x8  <<< 8) ||| x14 ), 4
+    r4 = to_64 ( (x3 <<< 16) ||| (x9  <<< 8) ||| x15 ), 4
+    r5 = to_64 ( (x4 <<< 16) ||| (x10 <<< 8) ||| x5  ), 4
+    r6 = to_64 x11, 2
+    Enum.join [r1, r2, r3, r4, r5, r6]
   end
 
   def to_64(value, iterations, chars \\ "")
