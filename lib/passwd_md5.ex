@@ -1,6 +1,7 @@
 defmodule PasswdMD5 do
 
   use Bitwise
+  require Integer
 
   @magic_md5 "$1$"
   @magic_apr "$apr1$"
@@ -55,70 +56,83 @@ defmodule PasswdMD5 do
     step_two((len >>> 1), pw, ctx)
   end
 
-  def step_three(ctx, _, _, 0), do: ctx
-  def step_three(ctx, salt, pw, count) do
+  def step_three(ctx, salt, pw, count) when count < 1000 do
     tmp = :crypto.hash_init(:md5)
-    :crypto.hash_update tmp, 
-            (if (count &&& 1), do: pw, else:  binary_part(ctx, 0, 16))
-    if (rem(count, 3) != 0), do: :crypto.hash_update(tmp, salt)
-    if (rem(count, 7) != 0), do: :crypto.hash_update(tmp, pw)
-    :crypto.hash_update tmp,
-            (if (count &&& 1), do: binary_part(ctx, 0, 16), else: pw)
-    step_three(:crypto.hash_final(tmp), salt, pw, (count - 1))
+    tmp = :crypto.hash_update tmp, 
+                  (if Integer.is_odd(count), do: pw, 
+                              else:  binary_part(ctx, 0, 16))
+    if (rem(count, 3) != 0), do: tmp = :crypto.hash_update(tmp, salt)
+    if (rem(count, 7) != 0), do: tmp = :crypto.hash_update(tmp, pw)
+    tmp = :crypto.hash_update tmp,
+                  (if Integer.is_odd(count), do: binary_part(ctx, 0, 16), 
+                              else: pw)
+    printable = tmp
+#    IO.puts "#{ count } -- #{ hexstring(:crypto.hash_final printable) }"
+    step_three(:crypto.hash_final(tmp), salt, pw, (count + 1))
   end
+  def step_three(ctx, _, _, _), do: ctx
 
   def d, do: make_hash("password", "01234567", "$apr1$")
 
   def make_hash(pw, salt, magic) do
     final = final_hash(pw, salt)
-    ctx = open_hash(pw, salt, magic)
-    ctx = step_one(String.length(pw), ctx, final)
-    finalized_ctx = step_two(String.length(pw), pw, ctx)
-#    finalized_ctx = :crypto.hash_final ctx
-    last_round_ctx = step_three(finalized_ctx, salt, pw, 1000)
+    ctx   = open_hash(pw, salt, magic)
+    ctx            = step_one(String.length(pw), ctx, final)
+    finalized_ctx  = step_two(String.length(pw), pw, ctx)
+    last_round_ctx = step_three(finalized_ctx, salt, pw, 0) 
+    IO.puts "after step three #{hexstring last_round_ctx}"
 
-    IO.puts hexstring(last_round_ctx)
-
-    # ctx = :crypto.hash_final ctx
-
-    # IO.puts "context; #{ inspect ctx }"
-    # ctx = slowdown(ctx, salt, pw, 1000)
-    # encode_password(ctx)
+ #   res            = step_four(last_round_ctx)
+#    IO.puts res
   end
 
 
 
-  defp encode_password(ctx) do
+  defp step_four(ctx) do
     # XXX: stupidly naive implementation.
     IO.puts "context: #{ (byte_size ctx) * 8 }"
-    {int_1, _ } = Integer.parse(binary_part(ctx, 0,  1) <<< 16)
-    {int_2, _ } = Integer.parse(binary_part(ctx, 6,  1) <<< 8)
-    {int_3, _ } = Integer.parse(binary_part(ctx, 12, 1))
-    res_1 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+    IO.puts "hexstring: #{ hexstring(ctx) }"
+#    x = binary_part(ctx, 0,  1) <<< 16
+    << x0,  x1,  x2,  x3,
+       x4,  x5,  x6,  x7, 
+       x8,  x9,  x10, x11,
+       x12, x13, x14, x15 >> = ctx
 
-    {int_1, _ } = Integer.parse(binary_part(ctx, 1,  1) <<< 16)
-    {int_2, _ } = Integer.parse(binary_part(ctx, 7,  1) <<< 8)
-    {int_3, _ } = Integer.parse(binary_part(ctx, 13, 1))
-    res_2 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+    IO.puts "#{ inspect x0 }, #{ inspect x6 }, #{ inspect x12 }"
+    r1 = ( (x0 <<< 16) ||| (x6 <<< 8) ||| x12 )
 
-    {int_1, _ } = Integer.parse(binary_part(ctx, 2,  1) <<< 16)
-    {int_2, _ } = Integer.parse(binary_part(ctx, 8,  1) <<< 8)
-    {int_3, _ } = Integer.parse(binary_part(ctx, 14, 1))
-    res_3 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+    IO.puts "#{ x0 <<< 16 }, #{ x6 <<< 8 }, #{ x12 }"
 
-    {int_1, _ } = Integer.parse(binary_part(ctx, 3,  1) <<< 16)
-    {int_2, _ } = Integer.parse(binary_part(ctx, 9,  1) <<< 8)
-    {int_3, _ } = Integer.parse(binary_part(ctx, 15, 1))
-    res_4 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+#    y = binary_part ctx, 0, 1
+# does not work:    IO.puts inspect (y <<< 16)
+    # {int_1, _ } = Integer.parse(binary_part(ctx, 0,  1) <<< 16)
+    # {int_2, _ } = Integer.parse(binary_part(ctx, 6,  1) <<< 8)
+    # {int_3, _ } = Integer.parse(binary_part(ctx, 12, 1))
+    # res_1 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
 
-    {int_1, _ } = Integer.parse(binary_part(ctx, 4,  1) <<< 16)
-    {int_2, _ } = Integer.parse(binary_part(ctx, 10,  1) <<< 8)
-    {int_3, _ } = Integer.parse(binary_part(ctx, 5, 1))
-    res_5 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+    # {int_1, _ } = Integer.parse(binary_part(ctx, 1,  1) <<< 16)
+    # {int_2, _ } = Integer.parse(binary_part(ctx, 7,  1) <<< 8)
+    # {int_3, _ } = Integer.parse(binary_part(ctx, 13, 1))
+    # res_2 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+
+    # {int_1, _ } = Integer.parse(binary_part(ctx, 2,  1) <<< 16)
+    # {int_2, _ } = Integer.parse(binary_part(ctx, 8,  1) <<< 8)
+    # {int_3, _ } = Integer.parse(binary_part(ctx, 14, 1))
+    # res_3 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+
+    # {int_1, _ } = Integer.parse(binary_part(ctx, 3,  1) <<< 16)
+    # {int_2, _ } = Integer.parse(binary_part(ctx, 9,  1) <<< 8)
+    # {int_3, _ } = Integer.parse(binary_part(ctx, 15, 1))
+    # res_4 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
+
+    # {int_1, _ } = Integer.parse(binary_part(ctx, 4,  1) <<< 16)
+    # {int_2, _ } = Integer.parse(binary_part(ctx, 10,  1) <<< 8)
+    # {int_3, _ } = Integer.parse(binary_part(ctx, 5, 1))
+    # res_5 = to_64( (int_1 ||| int_2 ||| int_3), 4 )
     
-    res_6 = to_64(Integer.parse(binary_part(ctx, 11, 1)), 2)
+    # res_6 = to_64(Integer.parse(binary_part(ctx, 11, 1)), 2)
 
-    Enum.join [res_1, res_2, res_3, res_4, res_5, res_6]
+    # Enum.join [res_1, res_2, res_3, res_4, res_5, res_6]
   end
 
   def to_64(value, iterations, chars \\ "")
@@ -127,8 +141,6 @@ defmodule PasswdMD5 do
     to_64 (value >>> 6), (iterations - 1), 
       chars <> String.at(@atoz, (value &&& 0x3f))
   end
-
-
 
   def extract_salt(str) do
     {_, salt, _} = parse_hash(str)
@@ -152,7 +164,9 @@ defmodule PasswdMD5 do
   defp generate_salt(length \\ 8, seed \\ :os.timestamp) do
     :random.seed(seed)
     len = String.length(@atoz)
-    chr = for _ <- 1 .. length, do: String.at(@atoz, (:random.uniform(len) - 1))
+    chr = for _ <- 1 .. length do 
+      String.at(@atoz, (:random.uniform(len) - 1))
+    end
     Enum.join chr
   end
 

@@ -1,6 +1,7 @@
 defmodule PasswdMD5Test do
   use ExUnit.Case
   alias PasswdMD5, as: MD
+  import PasswdMD5
 
   @salt "01234567"
   @pass "password"
@@ -54,13 +55,13 @@ defmodule PasswdMD5Test do
   end
 
   test "step three" do
-    expected = "d41d8cd98f00b204e9800998ecf8427e"
-    ctx = PasswdMD5.open_hash(@pass, @salt, @apr_magic)
-    final = PasswdMD5.final_hash(@pass, @salt)
-    ctx = PasswdMD5.step_one(String.length(@pass), ctx, final)
-    finalized_ctx = PasswdMD5.step_two(String.length(@pass), @pass, ctx)
-    res = PasswdMD5.step_three(finalized_ctx, @salt, @pass, 1000)
-    assert PasswdMD5.hexstring(res) == expected
+    expected = "98b70a943da7d8cf8b72e975d49c4c69"
+    final = final_hash(@pass, @salt)
+    ctx   = open_hash(@pass, @salt, @apr_magic)
+    ctx            = step_one(String.length(@pass), ctx, final)
+    finalized_ctx  = step_two(String.length(@pass), @pass, ctx)
+    last_round_ctx = step_three(finalized_ctx, @salt, @pass, 0) 
+    assert hexstring(last_round_ctx) == expected
   end    
 
   # test "crypt" do
