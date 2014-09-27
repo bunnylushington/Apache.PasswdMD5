@@ -58,16 +58,14 @@ defmodule PasswdMD5 do
 
   def step_three(ctx, salt, pw, count) when count < 1000 do
     tmp = :crypto.hash_init(:md5)
-    tmp = :crypto.hash_update tmp, 
-                  (if Integer.is_odd(count), do: pw, 
-                              else:  binary_part(ctx, 0, 16))
+    first_update = 
+      if Integer.is_odd(count), do: pw, else: binary_part(ctx, 0, 16)
+    tmp = :crypto.hash_update tmp, first_update
     if (rem(count, 3) != 0), do: tmp = :crypto.hash_update(tmp, salt)
     if (rem(count, 7) != 0), do: tmp = :crypto.hash_update(tmp, pw)
-    tmp = :crypto.hash_update tmp,
-                  (if Integer.is_odd(count), do: binary_part(ctx, 0, 16), 
-                              else: pw)
-    printable = tmp
-#    IO.puts "#{ count } -- #{ hexstring(:crypto.hash_final printable) }"
+    second_update = 
+      if Integer.is_odd(count), do: binary_part(ctx, 0, 16), else: pw
+    tmp = :crypto.hash_update tmp,second_update
     step_three(:crypto.hash_final(tmp), salt, pw, (count + 1))
   end
   def step_three(ctx, _, _, _), do: ctx
