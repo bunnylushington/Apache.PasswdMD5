@@ -2,7 +2,7 @@ defmodule PasswdMD5.Mixfile do
   use Mix.Project
 
   def project do
-    [app: :passwd_md5,
+    [app: :Apache_PasswdMD5,
      version: "1.0.0",
      elixir: "~> 1.0.0-rc1",
      description: description,
